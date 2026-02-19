@@ -1,4 +1,4 @@
-// NaN TIMER FIX VERSION 6
+// FLIP ANIMATION FINAL FIX
 (function ($) {
     let selectedCardId = null;
     let loadingBet = false;
@@ -17,11 +17,11 @@
             $card.addClass('card');
             if ($card.children('.flipx-card-inner').length) return;
 
-            const $front = $('<div class="flipx-card-front"></div>');
+            const $front = $('<div class="flipx-card-front card-front"></div>');
             $front.append($card.children().detach());
 
-            const $back = $('<div class="flipx-card-back"><span class="flipx-result-label">ROUND RESULT</span></div>');
-            const $inner = $('<div class="flipx-card-inner"></div>');
+            const $back = $('<div class="flipx-card-back card-back"><span class="flipx-result-label">ROUND RESULT</span></div>');
+            const $inner = $('<div class="flipx-card-inner card-inner"></div>');
 
             $inner.append($front, $back);
             $card.append($inner);
@@ -52,6 +52,7 @@
                     const label = card.querySelector('.flipx-result-label');
                     if (label) label.textContent = 'WINNER';
                 } else {
+                    card.classList.add('flipped');
                     card.classList.add('loser');
                     const label = card.querySelector('.flipx-result-label');
                     if (label) label.textContent = 'TRY AGAIN';
