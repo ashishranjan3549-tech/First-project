@@ -7,10 +7,15 @@ if (!defined('ABSPATH')) {
 <head>
     <meta charset="<?php bloginfo('charset'); ?>">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        .flipx-header { min-height: 58px !important; padding-top: 4px !important; padding-bottom: 4px !important; }
+        .flipx-logo, .flipx-logo-image { width: 192px !important; height: 192px !important; }
+    </style>
     <?php wp_head(); ?>
 </head>
 <body <?php body_class('flipx-body'); ?>>
 <?php wp_body_open(); ?>
+<!-- HEADER UPDATED VERSION 2 -->
 <header class="flipx-header">
     <button class="flipx-icon-btn" aria-label="Menu" id="flipxMenuToggle">☰</button>
     <div class="flipx-logo-wrap">
