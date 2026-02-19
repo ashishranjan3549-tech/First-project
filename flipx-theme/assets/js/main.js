@@ -1,6 +1,8 @@
+// FLIP ANIMATION VERSION 2
 (function ($) {
     let selectedCardId = null;
     let loadingBet = false;
+    let lastProcessedRoundId = null;
 
     const modal = $('#flipxBetModal');
 
@@ -8,14 +10,56 @@
         return $.post(flipxTheme.ajaxUrl, Object.assign({ action, nonce: flipxTheme.nonce }, data || {}));
     }
 
+    function ensureCardFlipStructure() {
+        $('.flipx-card').each(function () {
+            const $card = $(this);
+            if ($card.children('.flipx-card-inner').length) return;
+
+            const $front = $('<div class="flipx-card-front"></div>');
+            $front.append($card.children().detach());
+
+            const $back = $('<div class="flipx-card-back"><span class="flipx-result-label">ROUND RESULT</span></div>');
+            const $inner = $('<div class="flipx-card-inner"></div>');
+            const $badge = $('<span class="flipx-winner-badge">WINNER</span>');
+
+            $inner.append($front, $back);
+            $card.append($badge, $inner);
+        });
+    }
+
+    function resetCardResults() {
+        $('.flipx-card').removeClass('is-flipped winner loser');
+        $('.flipx-card .flipx-result-label').text('ROUND RESULT');
+    }
+
+    function playRoundResult(roundId, winningCardId) {
+        if (lastProcessedRoundId === roundId) return;
+        lastProcessedRoundId = roundId;
+
+        resetCardResults();
+        $('.flipx-card').each(function () {
+            const $card = $(this);
+            const cardId = parseInt($card.data('card-id'), 10);
+            const isWinner = cardId === parseInt(winningCardId, 10);
+            $card.addClass('is-flipped').addClass(isWinner ? 'winner' : 'loser');
+            $card.find('.flipx-result-label').text(isWinner ? 'WINNER' : 'TRY AGAIN');
+        });
+
+        setTimeout(function () {
+            resetCardResults();
+        }, 3000);
+    }
+
     function refreshRound() {
         call('flipx_get_round_state').done(function (res) {
             if (!res.success) return;
             $('#flipxRoundStatus').text(res.data.status_text);
+
             if (res.data.winning_card) {
-                $('.flipx-card').removeClass('winner');
-                $('.flipx-card[data-card-id="' + res.data.winning_card + '"]').addClass('winner');
+                const roundId = res.data.round_id || ('round_' + String(res.data.end_unix || '0'));
+                playRoundResult(roundId, res.data.winning_card);
             }
+
             const end = parseInt(res.data.end_unix, 10) * 1000;
             const now = Date.now();
             const diff = Math.max(0, end - now);
@@ -85,6 +129,7 @@
         call('flipx_forgot_password', { email }).done((res) => alert(res.data.message));
     });
 
+    ensureCardFlipStructure();
     setInterval(refreshRound, 1000);
     refreshRound();
 })(jQuery);
