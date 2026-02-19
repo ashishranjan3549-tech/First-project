@@ -1,4 +1,4 @@
-// FLIP ANIMATION VERSION 2
+// WINNER UI FIX VERSION 4
 (function ($) {
     let selectedCardId = null;
     let loadingBet = false;
@@ -13,6 +13,7 @@
     function ensureCardFlipStructure() {
         $('.flipx-card').each(function () {
             const $card = $(this);
+            $card.addClass('card');
             if ($card.children('.flipx-card-inner').length) return;
 
             const $front = $('<div class="flipx-card-front"></div>');
@@ -20,47 +21,61 @@
 
             const $back = $('<div class="flipx-card-back"><span class="flipx-result-label">ROUND RESULT</span></div>');
             const $inner = $('<div class="flipx-card-inner"></div>');
-            const $badge = $('<span class="flipx-winner-badge">WINNER</span>');
 
             $inner.append($front, $back);
-            $card.append($badge, $inner);
+            $card.append($inner);
         });
     }
 
-    function resetCardResults() {
-        $('.flipx-card').removeClass('is-flipped winner loser');
-        $('.flipx-card .flipx-result-label').text('ROUND RESULT');
+    function clearRoundClasses() {
+        const cards = document.querySelectorAll('.card');
+        cards.forEach((card) => {
+            card.classList.remove('winner', 'loser', 'flipped');
+            const label = card.querySelector('.flipx-result-label');
+            if (label) label.textContent = 'ROUND RESULT';
+        });
     }
 
-    function playRoundResult(roundId, winningCardId) {
-        if (lastProcessedRoundId === roundId) return;
-        lastProcessedRoundId = roundId;
+    function applyRoundResult(data) {
+        if (!data || !data.winning_card) return;
 
-        resetCardResults();
-        $('.flipx-card').each(function () {
-            const $card = $(this);
-            const cardId = parseInt($card.data('card-id'), 10);
-            const isWinner = cardId === parseInt(winningCardId, 10);
-            $card.addClass('is-flipped').addClass(isWinner ? 'winner' : 'loser');
-            $card.find('.flipx-result-label').text(isWinner ? 'WINNER' : 'TRY AGAIN');
-        });
+        console.log('Winning Card:', data.winning_card);
 
-        setTimeout(function () {
-            resetCardResults();
-        }, 3000);
+        if (data.round_id !== lastProcessedRoundId) {
+            const cards = document.querySelectorAll('.card');
+            cards.forEach((card) => {
+                const id = card.getAttribute('data-card-id');
+                if (parseInt(id, 10) === parseInt(data.winning_card, 10)) {
+                    card.classList.add('winner');
+                    card.classList.add('flipped');
+                    const label = card.querySelector('.flipx-result-label');
+                    if (label) label.textContent = 'WINNER';
+                } else {
+                    card.classList.add('loser');
+                    const label = card.querySelector('.flipx-result-label');
+                    if (label) label.textContent = 'TRY AGAIN';
+                }
+            });
+            lastProcessedRoundId = data.round_id;
+        }
     }
 
     function refreshRound() {
         call('flipx_get_round_state').done(function (res) {
             if (!res.success) return;
-            $('#flipxRoundStatus').text(res.data.status_text);
+            const data = res.data || {};
+            $('#flipxRoundStatus').text(data.status_text || '');
 
-            if (res.data.winning_card) {
-                const roundId = res.data.round_id || ('round_' + String(res.data.end_unix || '0'));
-                playRoundResult(roundId, res.data.winning_card);
+            if (data.status === 'active' && lastProcessedRoundId !== null) {
+                clearRoundClasses();
+                lastProcessedRoundId = null;
             }
 
-            const end = parseInt(res.data.end_unix, 10) * 1000;
+            if ((data.status === 'finished' || data.status === 'paused') && data.winning_card) {
+                applyRoundResult(data);
+            }
+
+            const end = parseInt(data.end_unix, 10) * 1000;
             const now = Date.now();
             const diff = Math.max(0, end - now);
             const h = String(Math.floor(diff / 3600000)).padStart(2, '0');
