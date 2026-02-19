@@ -108,18 +108,21 @@ function flipx_get_round_state(): array
     if (!$round) {
         $last = $wpdb->get_row("SELECT * FROM {$rounds} ORDER BY id DESC LIMIT 1");
         if ($last && $last->status === 'paused') {
-            $pause_remaining_seconds = max(0, strtotime($last->end_time . ' UTC') - $current_time);
+            $end_time = strtotime($last->end_time . ' UTC');
+            $pause_remaining_seconds = max(0, (int) ($end_time - $current_time));
             return [
                 'round_id' => (int) $last->id,
                 'status' => 'finished',
                 'status_text' => 'Result declared. Next round starts soon.',
                 'remaining_seconds' => 0,
-                'pause_remaining_seconds' => $pause_remaining_seconds,
+                'pause_remaining_seconds' => (int) $pause_remaining_seconds,
                 'winning_card' => $last->winning_card ? (int) $last->winning_card : null,
             ];
         }
+
         flipx_round_ensure_active();
         $round = flipx_round_get_active();
+
         if (!$round) {
             return [
                 'round_id' => 0,
@@ -132,13 +135,14 @@ function flipx_get_round_state(): array
         }
     }
 
-    $remaining_seconds = max(0, strtotime($round->end_time . ' UTC') - $current_time);
+    $end_time = strtotime($round->end_time . ' UTC');
+    $remaining_seconds = max(0, (int) ($end_time - $current_time));
 
     return [
         'round_id' => (int) $round->id,
         'status' => 'active',
         'status_text' => 'Round #' . (int) $round->id . ' is live.',
-        'remaining_seconds' => $remaining_seconds,
+        'remaining_seconds' => (int) $remaining_seconds,
         'pause_remaining_seconds' => 0,
         'winning_card' => null,
     ];

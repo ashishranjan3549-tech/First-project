@@ -1,4 +1,4 @@
-// TIMER + WINNER SYNC FIX VERSION 5
+// NaN TIMER FIX VERSION 6
 (function ($) {
     let selectedCardId = null;
     let loadingBet = false;
@@ -61,12 +61,22 @@
         }
     }
 
+    function formatTime(seconds) {
+        seconds = Math.max(0, parseInt(seconds, 10) || 0);
+
+        const hrs = Math.floor(seconds / 3600);
+        const mins = Math.floor((seconds % 3600) / 60);
+        const secs = seconds % 60;
+
+        return (
+            String(hrs).padStart(2, '0') + ':' +
+            String(mins).padStart(2, '0') + ':' +
+            String(secs).padStart(2, '0')
+        );
+    }
+
     function updateTimerUI(seconds) {
-        const safe = Math.max(0, parseInt(seconds, 10) || 0);
-        const h = String(Math.floor(safe / 3600)).padStart(2, '0');
-        const m = String(Math.floor((safe % 3600) / 60)).padStart(2, '0');
-        const s = String(safe % 60).padStart(2, '0');
-        $('#flipxTimer').text([h, m, s].join(':'));
+        $('#flipxTimer').text(formatTime(seconds));
     }
 
     function startCountdown(seconds) {
@@ -74,7 +84,14 @@
             clearInterval(countdownInterval);
         }
 
-        let remaining = Math.max(0, parseInt(seconds, 10) || 0);
+        let remaining = parseInt(seconds, 10);
+        if (isNaN(remaining)) {
+            remaining = 0;
+        }
+        if (remaining <= 0) {
+            remaining = 0;
+        }
+
         updateTimerUI(remaining);
 
         countdownInterval = setInterval(function () {
@@ -102,10 +119,24 @@
                     clearRoundClasses();
                     lastProcessedRoundId = null;
                 }
-                startCountdown(data.remaining_seconds);
+
+                let remaining = parseInt(data.remaining_seconds, 10);
+                if (isNaN(remaining)) {
+                    remaining = 0;
+                }
+                if (remaining <= 0) remaining = 0;
+
+                startCountdown(remaining);
             } else if (data.status === 'finished') {
                 applyRoundResult(data);
-                startCountdown(data.pause_remaining_seconds);
+
+                let remaining = parseInt(data.pause_remaining_seconds, 10);
+                if (isNaN(remaining)) {
+                    remaining = 0;
+                }
+                if (remaining <= 0) remaining = 0;
+
+                startCountdown(remaining);
             }
         });
     }
