@@ -1,8 +1,9 @@
-// WINNER UI FIX VERSION 4
+// TIMER + WINNER SYNC FIX VERSION 5
 (function ($) {
     let selectedCardId = null;
     let loadingBet = false;
     let lastProcessedRoundId = null;
+    let countdownInterval = null;
 
     const modal = $('#flipxBetModal');
 
@@ -37,11 +38,11 @@
     }
 
     function applyRoundResult(data) {
-        if (!data || !data.winning_card) return;
-
-        console.log('Winning Card:', data.winning_card);
-
-        if (data.round_id !== lastProcessedRoundId) {
+        if (
+            data.status === 'finished' &&
+            data.winning_card &&
+            data.round_id !== lastProcessedRoundId
+        ) {
             const cards = document.querySelectorAll('.card');
             cards.forEach((card) => {
                 const id = card.getAttribute('data-card-id');
@@ -60,28 +61,52 @@
         }
     }
 
+    function updateTimerUI(seconds) {
+        const safe = Math.max(0, parseInt(seconds, 10) || 0);
+        const h = String(Math.floor(safe / 3600)).padStart(2, '0');
+        const m = String(Math.floor((safe % 3600) / 60)).padStart(2, '0');
+        const s = String(safe % 60).padStart(2, '0');
+        $('#flipxTimer').text([h, m, s].join(':'));
+    }
+
+    function startCountdown(seconds) {
+        if (countdownInterval) {
+            clearInterval(countdownInterval);
+        }
+
+        let remaining = Math.max(0, parseInt(seconds, 10) || 0);
+        updateTimerUI(remaining);
+
+        countdownInterval = setInterval(function () {
+            remaining -= 1;
+            if (remaining <= 0) {
+                remaining = 0;
+                updateTimerUI(remaining);
+                clearInterval(countdownInterval);
+                countdownInterval = null;
+                return;
+            }
+            updateTimerUI(remaining);
+        }, 1000);
+    }
+
     function refreshRound() {
         call('flipx_get_round_state').done(function (res) {
             if (!res.success) return;
             const data = res.data || {};
+            console.log('Round State:', data);
             $('#flipxRoundStatus').text(data.status_text || '');
 
-            if (data.status === 'active' && lastProcessedRoundId !== null) {
-                clearRoundClasses();
-                lastProcessedRoundId = null;
-            }
-
-            if ((data.status === 'finished' || data.status === 'paused') && data.winning_card) {
+            if (data.status === 'active') {
+                if (lastProcessedRoundId !== null && data.round_id !== lastProcessedRoundId) {
+                    clearRoundClasses();
+                    lastProcessedRoundId = null;
+                }
+                startCountdown(data.remaining_seconds);
+            } else if (data.status === 'finished') {
                 applyRoundResult(data);
+                startCountdown(data.pause_remaining_seconds);
             }
-
-            const end = parseInt(data.end_unix, 10) * 1000;
-            const now = Date.now();
-            const diff = Math.max(0, end - now);
-            const h = String(Math.floor(diff / 3600000)).padStart(2, '0');
-            const m = String(Math.floor((diff % 3600000) / 60000)).padStart(2, '0');
-            const s = String(Math.floor((diff % 60000) / 1000)).padStart(2, '0');
-            $('#flipxTimer').text([h, m, s].join(':'));
         });
     }
 
@@ -145,6 +170,6 @@
     });
 
     ensureCardFlipStructure();
-    setInterval(refreshRound, 1000);
     refreshRound();
+    setInterval(refreshRound, 5000);
 })(jQuery);

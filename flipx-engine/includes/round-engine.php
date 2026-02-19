@@ -20,7 +20,8 @@ function flipx_round_ensure_active(): void
     $duration = max(15, (int) get_option('flipx_round_duration', 60));
     $table = $wpdb->prefix . 'flipx_rounds';
     $now = current_time('mysql');
-    $end = gmdate('Y-m-d H:i:s', current_time('timestamp') + $duration);
+    $current_time = current_time('timestamp');
+    $end = gmdate('Y-m-d H:i:s', $current_time + $duration);
 
     $wpdb->insert($table, [
         'start_time' => $now,
@@ -34,12 +35,12 @@ function flipx_round_tick_handler(): void
 {
     global $wpdb;
     $rounds = $wpdb->prefix . 'flipx_rounds';
-    $now = current_time('timestamp');
+    $current_time = current_time('timestamp');
 
     $active = flipx_round_get_active();
     if (!$active) {
         $last = $wpdb->get_row("SELECT * FROM {$rounds} ORDER BY id DESC LIMIT 1");
-        if ($last && $last->status === 'paused' && strtotime($last->end_time . ' UTC') > $now) {
+        if ($last && $last->status === 'paused' && strtotime($last->end_time . ' UTC') > $current_time) {
             return;
         }
         flipx_round_ensure_active();
@@ -47,7 +48,7 @@ function flipx_round_tick_handler(): void
     }
 
     $end = strtotime($active->end_time . ' UTC');
-    if ($end > $now) {
+    if ($end > $current_time) {
         return;
     }
 
@@ -85,7 +86,8 @@ function flipx_round_finalize(int $round_id): void
     }
 
     $pause = max(10, (int) get_option('flipx_pause_duration', 30));
-    $pause_end = gmdate('Y-m-d H:i:s', current_time('timestamp') + $pause);
+    $current_time = current_time('timestamp');
+    $pause_end = gmdate('Y-m-d H:i:s', $current_time + $pause);
 
     $wpdb->update($rounds_table, [
         'status' => 'paused',
@@ -101,25 +103,43 @@ function flipx_get_round_state(): array
 
     flipx_round_tick_handler();
     $round = flipx_round_get_active();
+    $current_time = current_time('timestamp');
 
     if (!$round) {
         $last = $wpdb->get_row("SELECT * FROM {$rounds} ORDER BY id DESC LIMIT 1");
         if ($last && $last->status === 'paused') {
+            $pause_remaining_seconds = max(0, strtotime($last->end_time . ' UTC') - $current_time);
             return [
-                'status' => 'paused',
+                'round_id' => (int) $last->id,
+                'status' => 'finished',
                 'status_text' => 'Result declared. Next round starts soon.',
-                'end_unix' => strtotime($last->end_time . ' UTC'),
+                'remaining_seconds' => 0,
+                'pause_remaining_seconds' => $pause_remaining_seconds,
                 'winning_card' => $last->winning_card ? (int) $last->winning_card : null,
             ];
         }
         flipx_round_ensure_active();
         $round = flipx_round_get_active();
+        if (!$round) {
+            return [
+                'round_id' => 0,
+                'status' => 'active',
+                'status_text' => 'Starting round...',
+                'remaining_seconds' => 0,
+                'pause_remaining_seconds' => 0,
+                'winning_card' => null,
+            ];
+        }
     }
 
+    $remaining_seconds = max(0, strtotime($round->end_time . ' UTC') - $current_time);
+
     return [
+        'round_id' => (int) $round->id,
         'status' => 'active',
         'status_text' => 'Round #' . (int) $round->id . ' is live.',
-        'end_unix' => strtotime($round->end_time . ' UTC'),
+        'remaining_seconds' => $remaining_seconds,
+        'pause_remaining_seconds' => 0,
         'winning_card' => null,
     ];
 }
