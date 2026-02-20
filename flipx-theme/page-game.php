@@ -35,10 +35,17 @@ $cards = function_exists('flipx_engine_get_cards') ? flipx_engine_get_cards() : 
 
     <div class="flipx-card-grid" id="flipxCardGrid">
         <?php foreach ($cards as $card) : ?>
-            <article class="flipx-card" data-card-id="<?php echo esc_attr((int) $card['id']); ?>">
-                <img src="<?php echo esc_url($card['image']); ?>" alt="<?php echo esc_attr($card['name']); ?>">
-                <h4><?php echo esc_html($card['name']); ?></h4>
-                <button class="flipx-btn place-bet-btn" data-card-id="<?php echo esc_attr((int) $card['id']); ?>">Place Bet</button>
+            <article class="card flipx-card" data-card-id="<?php echo esc_attr((int) $card['id']); ?>">
+                <div class="card-inner flipx-card-inner">
+                    <div class="card-front flipx-card-front">
+                        <img src="<?php echo esc_url($card['image']); ?>" alt="<?php echo esc_attr($card['name']); ?>">
+                        <h4><?php echo esc_html($card['name']); ?></h4>
+                        <button class="flipx-btn place-bet-btn" data-card-id="<?php echo esc_attr((int) $card['id']); ?>">Place Bet</button>
+                    </div>
+                    <div class="card-back flipx-card-back">
+                        <span class="flipx-result-label"></span>
+                    </div>
+                </div>
             </article>
         <?php endforeach; ?>
     </div>

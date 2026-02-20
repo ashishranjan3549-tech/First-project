@@ -11,69 +11,25 @@
         return $.post(flipxTheme.ajaxUrl, Object.assign({ action, nonce: flipxTheme.nonce }, data || {}));
     }
 
-    function ensureCardFlipStructure() {
-        $('.flipx-card').each(function () {
-            const $card = $(this);
-            $card.addClass('card');
-            if ($card.children('.flipx-card-inner').length) return;
-
-            const $front = $('<div class="flipx-card-front card-front"></div>');
-            $front.append($card.children().detach());
-
-            const $back = $('<div class="flipx-card-back card-back"><span class="flipx-result-label">ROUND RESULT</span></div>');
-            const $inner = $('<div class="flipx-card-inner card-inner"></div>');
-
-            $inner.append($front, $back);
-            $card.append($inner);
-        });
-    }
-
-    function clearRoundClasses() {
-        const cards = document.querySelectorAll('.card');
-        cards.forEach((card) => {
-            card.classList.remove('winner', 'loser', 'flipped');
-            const label = card.querySelector('.flipx-result-label');
-            if (label) label.textContent = 'ROUND RESULT';
-        });
-    }
-
-    function applyRoundResult(data) {
-        if (
-            data.status === 'finished' &&
-            data.winning_card &&
-            data.round_id !== lastProcessedRoundId
-        ) {
-            const cards = document.querySelectorAll('.card');
-            cards.forEach((card) => {
-                const id = card.getAttribute('data-card-id');
-                if (parseInt(id, 10) === parseInt(data.winning_card, 10)) {
-                    card.classList.add('winner');
-                    card.classList.add('flipped');
-                    const label = card.querySelector('.flipx-result-label');
-                    if (label) label.textContent = 'WINNER';
-                } else {
-                    card.classList.add('flipped');
-                    card.classList.add('loser');
-                    const label = card.querySelector('.flipx-result-label');
-                    if (label) label.textContent = 'TRY AGAIN';
-                }
-            });
-            lastProcessedRoundId = data.round_id;
-        }
+    // TIMER DESKTOP FIX
+    function normalizeRoundData(response) {
+        const data = (response && response.data) ? response.data : {};
+        return {
+            round_id: parseInt(data.round_id || 0, 10),
+            status: String(data.status || ''),
+            status_text: String(data.status_text || ''),
+            remaining_seconds: parseInt(data.remaining_seconds || 0, 10) || 0,
+            pause_remaining_seconds: parseInt(data.pause_remaining_seconds || 0, 10) || 0,
+            winning_card: data.winning_card !== null && data.winning_card !== undefined ? parseInt(data.winning_card, 10) : null,
+        };
     }
 
     function formatTime(seconds) {
-        seconds = Math.max(0, parseInt(seconds, 10) || 0);
-
-        const hrs = Math.floor(seconds / 3600);
-        const mins = Math.floor((seconds % 3600) / 60);
-        const secs = seconds % 60;
-
-        return (
-            String(hrs).padStart(2, '0') + ':' +
-            String(mins).padStart(2, '0') + ':' +
-            String(secs).padStart(2, '0')
-        );
+        const safe = Math.max(0, parseInt(seconds, 10) || 0);
+        const hrs = Math.floor(safe / 3600);
+        const mins = Math.floor((safe % 3600) / 60);
+        const secs = safe % 60;
+        return String(hrs).padStart(2, '0') + ':' + String(mins).padStart(2, '0') + ':' + String(secs).padStart(2, '0');
     }
 
     function updateTimerUI(seconds) {
@@ -85,11 +41,8 @@
             clearInterval(countdownInterval);
         }
 
-        let remaining = parseInt(seconds, 10);
-        if (isNaN(remaining)) {
-            remaining = 0;
-        }
-        if (remaining <= 0) {
+        let remaining = parseInt(seconds || 0, 10);
+        if (isNaN(remaining) || remaining <= 0) {
             remaining = 0;
         }
 
@@ -108,36 +61,85 @@
         }, 1000);
     }
 
+    // FLIP STRUCTURE FIX
+    function ensureCardFlipStructure() {
+        $('.card').each(function () {
+            const $card = $(this);
+            const $inner = $card.children('.card-inner');
+            if ($inner.length) {
+                return;
+            }
+
+            const existingChildren = $card.children().detach();
+            const $front = $('<div class="card-front"></div>');
+            const $back = $('<div class="card-back"><span class="flipx-result-label"></span></div>');
+            const $newInner = $('<div class="card-inner"></div>');
+
+            $front.append(existingChildren);
+            $newInner.append($front, $back);
+            $card.append($newInner);
+        });
+    }
+
+    function clearRoundClasses() {
+        document.querySelectorAll('.card').forEach(function (card) {
+            card.classList.remove('flipped', 'winner', 'loser');
+            const resultLabel = card.querySelector('.flipx-result-label');
+            if (resultLabel) {
+                resultLabel.textContent = '';
+            }
+        });
+    }
+
+    // WINNER MATCH FIX
+    function applyRoundResult(data) {
+        if (!(data.status === 'finished' && data.winning_card && data.round_id !== lastProcessedRoundId)) {
+            return;
+        }
+
+        document.querySelectorAll('.card').forEach(function (card) {
+            const cardId = card.getAttribute('data-card-id');
+            console.log('Winner ID:', data.winning_card);
+            console.log('Card ID:', cardId);
+
+            card.classList.add('flipped');
+            if (parseInt(cardId, 10) === parseInt(data.winning_card, 10)) {
+                card.classList.add('winner');
+                const resultLabel = card.querySelector('.flipx-result-label');
+                if (resultLabel) {
+                    resultLabel.textContent = 'WINNER';
+                }
+            } else {
+                card.classList.add('loser');
+                const resultLabel = card.querySelector('.flipx-result-label');
+                if (resultLabel) {
+                    resultLabel.textContent = 'TRY AGAIN';
+                }
+            }
+        });
+
+        lastProcessedRoundId = data.round_id;
+    }
+
     function refreshRound() {
-        call('flipx_get_round_state').done(function (res) {
-            if (!res.success) return;
-            const data = res.data || {};
+        call('flipx_get_round_state').done(function (response) {
+            if (!response || !response.success) return;
+
+            const data = normalizeRoundData(response);
             console.log('Round State:', data);
-            $('#flipxRoundStatus').text(data.status_text || '');
+            $('#flipxRoundStatus').text(data.status_text);
 
             if (data.status === 'active') {
                 if (lastProcessedRoundId !== null && data.round_id !== lastProcessedRoundId) {
                     clearRoundClasses();
                     lastProcessedRoundId = null;
                 }
-
-                let remaining = parseInt(data.remaining_seconds, 10);
-                if (isNaN(remaining)) {
-                    remaining = 0;
-                }
-                if (remaining <= 0) remaining = 0;
-
-                startCountdown(remaining);
+                startCountdown(data.remaining_seconds);
             } else if (data.status === 'finished') {
                 applyRoundResult(data);
-
-                let remaining = parseInt(data.pause_remaining_seconds, 10);
-                if (isNaN(remaining)) {
-                    remaining = 0;
-                }
-                if (remaining <= 0) remaining = 0;
-
-                startCountdown(remaining);
+                startCountdown(data.pause_remaining_seconds);
+            } else {
+                startCountdown(0);
             }
         });
     }
